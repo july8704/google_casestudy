@@ -1,0 +1,218 @@
+---
+title: "CASE STUDY 1"
+author: "JulioC"
+date: "12/22/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# PREPARE STAGE FOR BIKE-SHARE CASE STUDY 
+
+Inicially the data was located in twelve csv files, each file represent a month (from december of 2020 to nov of 2021). In a previous steps those files were put together in a csv file. Now, we are going to check de ROCCC and integrity of the data.
+
+First of all, we are going to load de main package "Tidyverse"
+
+```{r loading libraries}
+library(tidyverse)
+library(lubridate)
+library(ggplot2)
+library(scales)
+```
+
+## Importing the data and store it into a dataframe
+
+I will use the read_csv() function to import the data and I will store it in the bike_df variable:
+
+```{r importing data, echo=FALSE}
+bike_df <- read_csv ("data/trips/tripdata_1.csv")
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+## Checking the data
+
+In this stage, we are going to verify ROCCC and Integrity of the data and also to check how it is organized. So, I need to see the structure of the data, if the data types are appropriately assigned in each column, look for NA, look for bias, check the names of the colunm (variables).
+
+```{r check ROCCC and Integrity}
+glimpse (bike_df)
+```
+
+
+### It is time to verify dublicated values. To do that we need to analyze the ride_id column.
+
+```{r}
+
+bike_dublicated <- nrow(bike_df) - nrow (bike_df[!duplicated(bike_df$ride_id),])
+bike_dublicated
+```
+
+### Glimpse result.
+After run the glimpse function I get the next information about the its organization: 
+* There are 5'479,096 registres between casual rides and Cyclistic members
+* There are 13 variables with information about the date, time and the commuting between two places by bicycle.
+
+ROCCC:
+* R – OK
+* O – OK
+* C – There are some missing values related with start and end stations columns
+* C – OK
+* C – OK
+
+Integrity:
+* The variable are correctly namen.
+* The data types are correctly assigned.
+
+Licensing and privacy:
+* There is no problem with the licensing because the data belongs to the company and also with privacy because the data not content personal information.
+
+Problems:
+* The are several NA in the columns related with the start and end commute. The issue is that the data itself cannot give tips to infer the corresponding missing data. I think this data is not going to be useful. 
+
+On the other hand, the other variables can give idea about the participations of the type of members, the frecuency of the rides and the influence of the rideable type.
+
+# PROCESS STAGE FOR BIKE-SHARE CASE STUDY
+
+Now is the time to check the data for errors, that way I am going to check if the datastore makes sense.
+```{r cleaning}
+bike_df = bike_df %>%
+              mutate ( duration = ended_at - started_at)
+```
+
+During the process step I found that there were some mistakes with the variables started_at and ended_at. That is because when I calculated the duration in some events the results was negative and that is not a logical value for a duration of a trip. The reason is that the ended_at values were less than the started_at by a month. I supposed that is a digital mistake, but I don't have enough support to assume this position. So, In order to advance with the solution of the case I decide to exclude this events.
+```{r filtering_duration_positives}
+bike <- bike_df  %>%
+  filter(bike_df$duration>=0)
+```
+
+### Cleaning Process
+
+According with the worked made I took the next decision:
+
+* The data related with where the service start and where the service end is incomplete there are too many registers that has NA, so I decided to exclude this variables.
+* I found inconsistencies in started_at and ended_at data. So, I decided to exclude this registers and continue with the project.
+```{r selecting_variables}
+bike_df <- bike_df %>%
+                    select(ride_id, rideable_type, started_at, ended_at, member_casual, duration)
+```
+
+### Choose your tools
+
+To solve this case I have used RStudio and Tableau.
+
+* RStudio --> It support me in develop the activities in the "prepare step" to the "share step". I also used RStudio to create a report to show the activities made in each steps.
+* Tableau --> I used this tool to create a dashboard that make possible that stakeholders interact with the data and they can get interesting insights.
+
+```{r calculating_members_paricipation}
+table(bike_df$member_casual)/length(bike_df$member_casual)*100
+```
+
+# ANALYSIS STAGE FOR BIKE-SHARE CASE STUDY
+
+Additionally, I am going to do some transformations that will help the analysis in the next step.
+I'm driving the analytics by comparing member users and casual users over time. So I'm going to need time as a form of hierarchy
+
+```{r agregate_hierarchy_date}
+bike_df = bike_df %>%
+              mutate ( years = year(started_at),
+                       months = month(started_at),
+                       days = day(started_at),
+                       week_days = wday(started_at),
+                       hours = hour(started_at))
+```
+
+It is time to summarize the dataset and obtain statistical insights
+
+```{r summarizing_dataset}
+summary(bike_df)
+```
+
+### Identify trends and relationships
+
+My task in this case is to find differences between members users and casual users. So, I will drive this work to find information that answer the following questions:
+
+* How users behave in rush hours?
+* What is the members participations?
+* What is the behave of users in the weekdays?
+* What is the influence of rideable type variable over the services?
+* How much and how is used each service?
+
+I will find this answer in the following step.
+
+# SHARE (VISUALIZATIONS)
+
+```{r }
+bike_df %>%
+  group_by(member_casual)  %>%
+    summarise(part_member = length(member_casual))   %>%
+      ggplot(aes(x = "", y = part_member, fill = member_casual)) +
+        geom_bar(stat = "identity", color = "white") +
+          geom_text(aes(label= part_member),
+              position=position_stack(vjust=0.5),color="white",size=6)+
+                coord_polar(theta = "y")+
+                scale_fill_manual(values=c("salmon","steelblue"))+
+                  theme_void()+
+                    labs(title = "Members Participation") + 
+                      scale_y_continuous(labels = scales::comma)
+          
+```
+
+
+```{r}
+bike_df %>%
+  group_by(member_casual, rideable_type)  %>%
+    summarise(part_rideable = length(member_casual))   %>%
+      ggplot(aes(x = rideable_type, y = part_rideable, fill = member_casual)) +
+        geom_bar(stat = "identity", color = "white") +
+          geom_text(aes(label= part_rideable),
+              position=position_stack(vjust=0.5),color="white",size=6)+
+                  theme_void()+
+                    labs(title = "Membership influenced by Rideable") + 
+                      scale_y_continuous(labels = scales::comma)
+```
+
+
+```{r}
+bike_df %>%
+  group_by(week_days, member_casual)  %>%
+    summarise(part = length(member_casual)) %>%
+      ggplot(aes(x = week_days, y = part)) +
+        geom_line(stat = "identity", color = "blue") +
+          labs(title = "Members's behaviours by weekdays",
+          subtitle = " ",
+          y = "Member Users", x = "Week Days") +
+            facet_wrap(~ member_casual)  
+```
+
+```{r}
+ggplot (bike_df, aes( x = hours)) +
+  geom_freqpoly (aes(color = rideable_type, linetype = member_casual))+
+    theme_minimal()
+```
+
+```{r}
+bike_df_filtered <- bike_df %>%
+  filter (duration>=0) %>%
+    group_by (member_casual, rideable_type) %>%
+      summarise (avg_duration = mean(duration))
+```
+
+```{r}
+ggplot (bike_df_filtered, aes( x = rideable_type, y = avg_duration))+
+  geom_bar (aes(fill = rideable_type),stat = "identity",
+             position = "dodge")+
+            facet_wrap(~ member_casual)  
+```
+
+# CONCLUSIONS
+##The big purse of this page is to study use of the service bike-share over the time.
+
+Although the behavior of members and casual are similar when we go deeper we found some differences:
+
+
+* The rush hour at the morning for both, member users and casual users, is at 08:00 a.m., but at the afternoon is at 02:00 p.m. for casual users and at 05:00 p.m. for member users.
+* Other important insight is that casual users use longer the service particularly classics and docked bike types. This behavior increase during the weekend starting to Friday to Sunday. 
+*  The service of bike-share is a lot more use by member than by casual user (Almost four times more).
+* Taking a part the different in volume the behavior through time and rideable type of casual and member users are really similar.
